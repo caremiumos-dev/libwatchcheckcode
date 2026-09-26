@@ -5,6 +5,10 @@ build/
 out/
 libs/
 prebuilt/
+target/
+
+# Rust
+Cargo.lock
 
 # CMake
 CMakeCache.txt
