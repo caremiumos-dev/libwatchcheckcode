@@ -4,32 +4,57 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 NDK="${ANDROID_NDK_HOME:-${ANDROID_NDK:-/opt/android-ndk-r21}}"
-if [ ! -f "$NDK/build/cmake/android.toolchain.cmake" ]; then
-    echo "error: NDK CMake toolchain not found under $NDK (set ANDROID_NDK_HOME)" >&2
+if [ ! -x "$NDK/ndk-build" ]; then
+    echo "error: NDK not found under $NDK (set ANDROID_NDK_HOME)" >&2
     exit 1
 fi
 
-ABIS="${ANDROID_ABIS:-armeabi-v7a}"
+HOST_TAG="linux-x86_64"
+BIN="$NDK/toolchains/llvm/prebuilt/$HOST_TAG/bin"
 API="${ANDROID_API:-24}"
-BUILD_ROOT="${BUILD_ROOT:-/tmp/opencode/watchcheckcode_build}"
+TARGETS="${ANDROID_TARGETS:-armv7-linux-androideabi}"
 
-rm -rf "$BUILD_ROOT"
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/tmp/opencode/watchcheckcode_cargo}"
 
-for abi in $ABIS; do
-    cmake -S "$PROJECT_DIR" -B "$BUILD_ROOT/$abi" \
-        -G Ninja \
-        -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
-        -DANDROID_ABI="$abi" \
-        -DANDROID_PLATFORM="android-$API" \
-        -DCMAKE_BUILD_TYPE=Release
-    cmake --build "$BUILD_ROOT/$abi"
-done
+abi_of() {
+    case "$1" in
+        armv7-linux-androideabi) echo "armeabi-v7a" ;;
+        aarch64-linux-android)   echo "arm64-v8a" ;;
+        i686-linux-android)      echo "x86" ;;
+        x86_64-linux-android)    echo "x86_64" ;;
+        *) echo "unknown" ;;
+    esac
+}
 
-mkdir -p "$PROJECT_DIR/prebuilt"
-for abi in $ABIS; do
+cc_of() {
+    case "$1" in
+        armv7-linux-androideabi) echo "armv7a-linux-androideabi" ;;
+        aarch64-linux-android)   echo "aarch64-linux-android" ;;
+        i686-linux-android)      echo "i686-linux-android" ;;
+        x86_64-linux-android)    echo "x86_64-linux-android" ;;
+        *) echo "" ;;
+    esac
+}
+
+for target in $TARGETS; do
+    abi="$(abi_of "$target")"
+    cc="$(cc_of "$target")"
+    if [ "$abi" = "unknown" ] || [ -z "$cc" ]; then
+        echo "error: unsupported target $target" >&2
+        exit 1
+    fi
+
+    var="CARGO_TARGET_$(echo "$target" | tr 'a-z-' 'A-Z_')_LINKER"
+    export "$var=$BIN/${cc}${API}-clang"
+
+    flags_var="CARGO_TARGET_$(echo "$target" | tr 'a-z-' 'A-Z_')_RUSTFLAGS"
+    export "$flags_var=-C link-arg=-fuse-ld=lld"
+
+    cargo build --release --target "$target" --manifest-path "$PROJECT_DIR/Cargo.toml"
+
     mkdir -p "$PROJECT_DIR/prebuilt/$abi"
-    find "$BUILD_ROOT/$abi" -name "libwatchcheckcode.so" \
-        -exec cp {} "$PROJECT_DIR/prebuilt/$abi/" \;
+    cp "$CARGO_TARGET_DIR/$target/release/libwatchcheckcode.so" \
+        "$PROJECT_DIR/prebuilt/$abi/libwatchcheckcode.so"
 done
 
 echo "built: $PROJECT_DIR/prebuilt/"
