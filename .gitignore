@@ -1,0 +1,50 @@
+# Build directories
+build/
+.cxx/
+.cache/
+out/
+libs/
+prebuilt/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake.stamp
+
+# Ninja
+.ninja_deps
+.ninja_log
+build.ninja
+rules.ninja
+
+# Object / library intermediates
+*.o
+*.obj
+*.lo
+*.a
+*.la
+*.d
+*.dSYM/
+
+# Android
+local.properties
+*.apk
+*.aar
+*.ap_
+*.dex
+jniLibs/
+.externalNativeBuild/
+.gradle/
+
+# IDE / editor
+.idea/
+.vscode/
+*.iml
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
